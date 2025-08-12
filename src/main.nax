@@ -1,0 +1,78 @@
+// NOX Platform - Главный файл приложения
+// Версия: 3.0
+
+import core.system
+import core.network
+import core.modules
+import core.api
+
+class NOXPlatform {
+    private var system: System
+    private var network: NetworkStack
+    private var moduleManager: ModuleManager
+    private var api: APIServer
+    
+    constructor() {
+        this.system = new System()
+        this.network = new NetworkStack()
+        this.moduleManager = new ModuleManager()
+        this.api = new APIServer()
+    }
+    
+    public function initialize(): void {
+        println("Инициализация NOX Platform v3.0...")
+        
+        // Инициализация ядра
+        this.system.initialize()
+        
+        // Инициализация сетевого стека
+        this.network.initialize()
+        
+        // Загрузка модулей
+        this.moduleManager.loadModules()
+        
+        // Запуск API сервера
+        this.api.start()
+        
+        println("NOX Platform успешно инициализирована")
+    }
+    
+    public function run(): void {
+        println("Запуск NOX Platform...")
+        
+        // Основной цикл событий
+        while (true) {
+            this.system.processEvents()
+            this.network.processPackets()
+            this.moduleManager.updateModules()
+            
+            // Небольшая задержка для экономии ресурсов
+            sleep(10)
+        }
+    }
+    
+    public function shutdown(): void {
+        println("Завершение работы NOX Platform...")
+        
+        this.api.stop()
+        this.moduleManager.unloadModules()
+        this.network.shutdown()
+        this.system.shutdown()
+        
+        println("NOX Platform завершена")
+    }
+}
+
+// Точка входа в приложение
+function main(): void {
+    var platform = new NOXPlatform()
+    
+    try {
+        platform.initialize()
+        platform.run()
+    } catch (error: Exception) {
+        println("Ошибка: " + error.getMessage())
+    } finally {
+        platform.shutdown()
+    }
+} 

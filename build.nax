@@ -1,0 +1,372 @@
+// Файл сборки NOX Platform
+// Определяет процесс компиляции и сборки проекта
+
+class NOXBuilder {
+    private var sourceDir: String
+    private var outputDir: String
+    private var config: BuildConfig
+    
+    constructor() {
+        this.sourceDir = "src/"
+        this.outputDir = "build/"
+        this.config = new BuildConfig()
+    }
+    
+    public function build(): boolean {
+        println("Начало сборки NOX Platform...")
+        
+        try {
+            // Очистка предыдущей сборки
+            this.clean()
+            
+            // Создание директорий
+            this.createDirectories()
+            
+            // Компиляция исходного кода
+            if (!this.compileSource()) {
+                return false
+            }
+            
+            // Копирование ресурсов
+            this.copyResources()
+            
+            // Создание исполняемого файла
+            if (!this.createExecutable()) {
+                return false
+            }
+            
+            // Создание пакета
+            this.createPackage()
+            
+            println("Сборка NOX Platform завершена успешно")
+            return true
+            
+        } catch (error: Exception) {
+            println("Ошибка сборки: " + error.getMessage())
+            return false
+        }
+    }
+    
+    private function clean(): void {
+        println("Очистка предыдущей сборки...")
+        
+        // Удаление директории build
+        if (directoryExists(this.outputDir)) {
+            deleteDirectory(this.outputDir)
+        }
+    }
+    
+    private function createDirectories(): void {
+        println("Создание директорий...")
+        
+        createDirectory(this.outputDir)
+        createDirectory(this.outputDir + "bin/")
+        createDirectory(this.outputDir + "lib/")
+        createDirectory(this.outputDir + "config/")
+        createDirectory(this.outputDir + "modules/")
+        createDirectory(this.outputDir + "logs/")
+        createDirectory(this.outputDir + "docs/")
+    }
+    
+    private function compileSource(): boolean {
+        println("Компиляция исходного кода...")
+        
+        var sourceFiles = this.findSourceFiles()
+        var compiledFiles = new List<String>()
+        
+        for (var file: String in sourceFiles) {
+            println("Компиляция: " + file)
+            
+            var outputFile = this.outputDir + "bin/" + this.getOutputFileName(file)
+            
+            if (this.compileFile(file, outputFile)) {
+                compiledFiles.add(outputFile)
+            } else {
+                println("Ошибка компиляции файла: " + file)
+                return false
+            }
+        }
+        
+        println("Скомпилировано файлов: " + compiledFiles.size())
+        return true
+    }
+    
+    private function findSourceFiles(): List<String> {
+        var files = new List<String>()
+        
+        // Основные файлы
+        files.add(this.sourceDir + "main.nax")
+        files.add(this.sourceDir + "core/system.nax")
+        files.add(this.sourceDir + "core/network.nax")
+        files.add(this.sourceDir + "core/modules.nax")
+        files.add(this.sourceDir + "core/api.nax")
+        
+        return files
+    }
+    
+    private function compileFile(sourceFile: String, outputFile: String): boolean {
+        // Здесь будет реальная логика компиляции
+        // Пока это заглушка
+        
+        println("Компиляция " + sourceFile + " -> " + outputFile)
+        
+        // Симуляция компиляции
+        var success = true
+        
+        // Проверка синтаксиса
+        if (!this.checkSyntax(sourceFile)) {
+            success = false
+        }
+        
+        // Генерация кода
+        if (success && !this.generateCode(sourceFile, outputFile)) {
+            success = false
+        }
+        
+        return success
+    }
+    
+    private function checkSyntax(file: String): boolean {
+        // Проверка синтаксиса NAX файла
+        println("Проверка синтаксиса: " + file)
+        return true // Заглушка
+    }
+    
+    private function generateCode(sourceFile: String, outputFile: String): boolean {
+        // Генерация исполняемого кода
+        println("Генерация кода: " + sourceFile + " -> " + outputFile)
+        return true // Заглушка
+    }
+    
+    private function getOutputFileName(sourceFile: String): String {
+        // Преобразование имени файла
+        var fileName = getFileName(sourceFile)
+        return replaceExtension(fileName, ".nax", ".nox")
+    }
+    
+    private function copyResources(): void {
+        println("Копирование ресурсов...")
+        
+        // Копирование конфигурационных файлов
+        copyFile("config/system.conf", this.outputDir + "config/system.conf")
+        
+        // Копирование примеров модулей
+        copyFile("examples/SimpleModule.nax", this.outputDir + "modules/SimpleModule.nax")
+        
+        // Копирование документации
+        copyFile("README.md", this.outputDir + "docs/README.md")
+    }
+    
+    private function createExecutable(): boolean {
+        println("Создание исполняемого файла...")
+        
+        var mainFile = this.outputDir + "bin/main.nox"
+        var executable = this.outputDir + "nox"
+        
+        // Создание исполняемого файла
+        if (this.linkExecutable(mainFile, executable)) {
+            // Установка прав на выполнение
+            setExecutablePermissions(executable)
+            return true
+        }
+        
+        return false
+    }
+    
+    private function linkExecutable(mainFile: String, executable: String): boolean {
+        // Линковка исполняемого файла
+        println("Линковка: " + mainFile + " -> " + executable)
+        return true // Заглушка
+    }
+    
+    private function createPackage(): void {
+        println("Создание пакета...")
+        
+        var packageName = "nox-platform-" + this.config.getVersion() + ".tar.gz"
+        var packagePath = this.outputDir + packageName
+        
+        // Создание архива
+        createArchive(this.outputDir, packagePath)
+        
+        println("Пакет создан: " + packagePath)
+    }
+    
+    public function test(): boolean {
+        println("Запуск тестов...")
+        
+        var testFiles = this.findTestFiles()
+        var passed = 0
+        var failed = 0
+        
+        for (var testFile: String in testFiles) {
+            println("Запуск теста: " + testFile)
+            
+            if (this.runTest(testFile)) {
+                passed++
+            } else {
+                failed++
+            }
+        }
+        
+        println("Тесты завершены: " + passed + " пройдено, " + failed + " провалено")
+        return failed == 0
+    }
+    
+    private function findTestFiles(): List<String> {
+        var files = new List<String>()
+        
+        // Поиск тестовых файлов
+        if (directoryExists("tests/")) {
+            var testFiles = listFiles("tests/", "*.nax")
+            for (var file: String in testFiles) {
+                if (file.endsWith("Test.nax")) {
+                    files.add(file)
+                }
+            }
+        }
+        
+        return files
+    }
+    
+    private function runTest(testFile: String): boolean {
+        // Запуск теста
+        println("Выполнение теста: " + testFile)
+        return true // Заглушка
+    }
+    
+    public function install(): boolean {
+        println("Установка NOX Platform...")
+        
+        var installDir = "/usr/local/nox/"
+        
+        // Создание директории установки
+        if (!directoryExists(installDir)) {
+            createDirectory(installDir)
+        }
+        
+        // Копирование файлов
+        copyDirectory(this.outputDir, installDir)
+        
+        // Создание символических ссылок
+        createSymlink(installDir + "nox", "/usr/local/bin/nox")
+        
+        println("NOX Platform установлена в " + installDir)
+        return true
+    }
+}
+
+// Конфигурация сборки
+class BuildConfig {
+    private var version: String
+    private var buildNumber: int
+    private var target: String
+    private var optimization: String
+    
+    constructor() {
+        this.version = "3.0.0"
+        this.buildNumber = 1
+        this.target = "native"
+        this.optimization = "release"
+    }
+    
+    public function getVersion(): String {
+        return this.version
+    }
+    
+    public function getBuildNumber(): int {
+        return this.buildNumber
+    }
+    
+    public function getTarget(): String {
+        return this.target
+    }
+    
+    public function getOptimization(): String {
+        return this.optimization
+    }
+}
+
+// Утилитарные функции (заглушки)
+function directoryExists(path: String): boolean {
+    return true // Заглушка
+}
+
+function deleteDirectory(path: String): void {
+    println("Удаление директории: " + path)
+}
+
+function createDirectory(path: String): void {
+    println("Создание директории: " + path)
+}
+
+function copyFile(source: String, destination: String): void {
+    println("Копирование файла: " + source + " -> " + destination)
+}
+
+function copyDirectory(source: String, destination: String): void {
+    println("Копирование директории: " + source + " -> " + destination)
+}
+
+function listFiles(directory: String, pattern: String): List<String> {
+    return new List<String>()
+}
+
+function getFileName(path: String): String {
+    var parts = path.split("/")
+    return parts[parts.length - 1]
+}
+
+function replaceExtension(fileName: String, oldExt: String, newExt: String): String {
+    if (fileName.endsWith(oldExt)) {
+        return fileName.substring(0, fileName.length - oldExt.length) + newExt
+    }
+    return fileName
+}
+
+function setExecutablePermissions(file: String): void {
+    println("Установка прав на выполнение: " + file)
+}
+
+function createArchive(sourceDir: String, archivePath: String): void {
+    println("Создание архива: " + sourceDir + " -> " + archivePath)
+}
+
+function createSymlink(target: String, link: String): void {
+    println("Создание символической ссылки: " + target + " -> " + link)
+}
+
+// Точка входа для сборки
+function main(): void {
+    var builder = new NOXBuilder()
+    
+    var args = getCommandLineArgs()
+    
+    if (args.length == 0) {
+        // Сборка по умолчанию
+        builder.build()
+    } else {
+        var command = args[0]
+        
+        switch (command) {
+            case "build":
+                builder.build()
+                break
+            case "test":
+                builder.test()
+                break
+            case "install":
+                builder.install()
+                break
+            case "clean":
+                // Очистка
+                break
+            default:
+                println("Неизвестная команда: " + command)
+                println("Доступные команды: build, test, install, clean")
+        }
+    }
+}
+
+function getCommandLineArgs(): List<String> {
+    return new List<String>()
+} 

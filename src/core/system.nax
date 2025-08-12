@@ -1,0 +1,263 @@
+// Ядро системы NOX
+// Отвечает за базовую функциональность платформы
+
+class System {
+    private var eventQueue: EventQueue
+    private var processManager: ProcessManager
+    private var memoryManager: MemoryManager
+    private var configManager: ConfigManager
+    
+    constructor() {
+        this.eventQueue = new EventQueue()
+        this.processManager = new ProcessManager()
+        this.memoryManager = new MemoryManager()
+        this.configManager = new ConfigManager()
+    }
+    
+    public function initialize(): void {
+        println("Инициализация ядра системы...")
+        
+        this.configManager.loadConfig("config/system.conf")
+        this.memoryManager.initialize()
+        this.processManager.initialize()
+        this.eventQueue.initialize()
+        
+        println("Ядро системы инициализировано")
+    }
+    
+    public function processEvents(): void {
+        while (this.eventQueue.hasEvents()) {
+            var event = this.eventQueue.getNextEvent()
+            this.handleEvent(event)
+        }
+    }
+    
+    private function handleEvent(event: Event): void {
+        switch (event.getType()) {
+            case EventType.SYSTEM:
+                this.handleSystemEvent(event)
+                break
+            case EventType.NETWORK:
+                this.handleNetworkEvent(event)
+                break
+            case EventType.MODULE:
+                this.handleModuleEvent(event)
+                break
+            default:
+                println("Неизвестный тип события: " + event.getType())
+        }
+    }
+    
+    private function handleSystemEvent(event: Event): void {
+        // Обработка системных событий
+        println("Обработка системного события: " + event.getName())
+    }
+    
+    private function handleNetworkEvent(event: Event): void {
+        // Обработка сетевых событий
+        println("Обработка сетевого события: " + event.getName())
+    }
+    
+    private function handleModuleEvent(event: Event): void {
+        // Обработка событий модулей
+        println("Обработка события модуля: " + event.getName())
+    }
+    
+    public function shutdown(): void {
+        println("Завершение работы ядра системы...")
+        
+        this.eventQueue.shutdown()
+        this.processManager.shutdown()
+        this.memoryManager.shutdown()
+        
+        println("Ядро системы завершено")
+    }
+    
+    // Геттеры для доступа к компонентам
+    public function getEventQueue(): EventQueue {
+        return this.eventQueue
+    }
+    
+    public function getProcessManager(): ProcessManager {
+        return this.processManager
+    }
+    
+    public function getMemoryManager(): MemoryManager {
+        return this.memoryManager
+    }
+    
+    public function getConfigManager(): ConfigManager {
+        return this.configManager
+    }
+}
+
+// Менеджер событий
+class EventQueue {
+    private var events: List<Event>
+    
+    constructor() {
+        this.events = new List<Event>()
+    }
+    
+    public function initialize(): void {
+        println("Инициализация очереди событий")
+    }
+    
+    public function addEvent(event: Event): void {
+        this.events.add(event)
+    }
+    
+    public function hasEvents(): boolean {
+        return !this.events.isEmpty()
+    }
+    
+    public function getNextEvent(): Event {
+        return this.events.remove(0)
+    }
+    
+    public function shutdown(): void {
+        this.events.clear()
+    }
+}
+
+// Класс события
+class Event {
+    private var type: EventType
+    private var name: String
+    private var data: Map<String, Object>
+    
+    constructor(type: EventType, name: String) {
+        this.type = type
+        this.name = name
+        this.data = new Map<String, Object>()
+    }
+    
+    public function getType(): EventType {
+        return this.type
+    }
+    
+    public function getName(): String {
+        return this.name
+    }
+    
+    public function setData(key: String, value: Object): void {
+        this.data.put(key, value)
+    }
+    
+    public function getData(key: String): Object {
+        return this.data.get(key)
+    }
+}
+
+// Типы событий
+enum EventType {
+    SYSTEM,
+    NETWORK,
+    MODULE,
+    USER
+}
+
+// Менеджер процессов
+class ProcessManager {
+    private var processes: Map<String, Process>
+    
+    constructor() {
+        this.processes = new Map<String, Process>()
+    }
+    
+    public function initialize(): void {
+        println("Инициализация менеджера процессов")
+    }
+    
+    public function createProcess(name: String, priority: int): Process {
+        var process = new Process(name, priority)
+        this.processes.put(name, process)
+        return process
+    }
+    
+    public function shutdown(): void {
+        for (var process: Process in this.processes.values()) {
+            process.terminate()
+        }
+        this.processes.clear()
+    }
+}
+
+// Класс процесса
+class Process {
+    private var name: String
+    private var priority: int
+    private var isRunning: boolean
+    
+    constructor(name: String, priority: int) {
+        this.name = name
+        this.priority = priority
+        this.isRunning = false
+    }
+    
+    public function start(): void {
+        this.isRunning = true
+        println("Процесс " + this.name + " запущен")
+    }
+    
+    public function terminate(): void {
+        this.isRunning = false
+        println("Процесс " + this.name + " завершен")
+    }
+}
+
+// Менеджер памяти
+class MemoryManager {
+    private var allocatedMemory: long
+    private var maxMemory: long
+    
+    constructor() {
+        this.allocatedMemory = 0
+        this.maxMemory = 1024 * 1024 * 1024 // 1GB
+    }
+    
+    public function initialize(): void {
+        println("Инициализация менеджера памяти")
+    }
+    
+    public function allocate(size: long): boolean {
+        if (this.allocatedMemory + size <= this.maxMemory) {
+            this.allocatedMemory += size
+            return true
+        }
+        return false
+    }
+    
+    public function free(size: long): void {
+        this.allocatedMemory -= size
+        if (this.allocatedMemory < 0) {
+            this.allocatedMemory = 0
+        }
+    }
+    
+    public function shutdown(): void {
+        this.allocatedMemory = 0
+    }
+}
+
+// Менеджер конфигурации
+class ConfigManager {
+    private var config: Map<String, String>
+    
+    constructor() {
+        this.config = new Map<String, String>()
+    }
+    
+    public function loadConfig(filename: String): void {
+        println("Загрузка конфигурации из " + filename)
+        // Здесь будет логика загрузки конфигурации
+    }
+    
+    public function getValue(key: String): String {
+        return this.config.get(key)
+    }
+    
+    public function setValue(key: String, value: String): void {
+        this.config.put(key, value)
+    }
+} 

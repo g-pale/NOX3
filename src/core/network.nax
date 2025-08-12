@@ -1,0 +1,544 @@
+// Сетевой стек NOX
+// Обработка сетевых протоколов и коммуникации
+
+class NetworkStack {
+    private var tcpStack: TCPStack
+    private var udpStack: UDPStack
+    private var ipStack: IPStack
+    private var ethernetStack: EthernetStack
+    private var packetQueue: PacketQueue
+    private var connectionManager: ConnectionManager
+    
+    constructor() {
+        this.tcpStack = new TCPStack()
+        this.udpStack = new UDPStack()
+        this.ipStack = new IPStack()
+        this.ethernetStack = new EthernetStack()
+        this.packetQueue = new PacketQueue()
+        this.connectionManager = new ConnectionManager()
+    }
+    
+    public function initialize(): void {
+        println("Инициализация сетевого стека...")
+        
+        this.ethernetStack.initialize()
+        this.ipStack.initialize()
+        this.udpStack.initialize()
+        this.tcpStack.initialize()
+        this.connectionManager.initialize()
+        
+        println("Сетевой стек инициализирован")
+    }
+    
+    public function processPackets(): void {
+        // Обработка входящих пакетов
+        while (this.packetQueue.hasIncomingPackets()) {
+            var packet = this.packetQueue.getIncomingPacket()
+            this.processIncomingPacket(packet)
+        }
+        
+        // Обработка исходящих пакетов
+        while (this.packetQueue.hasOutgoingPackets()) {
+            var packet = this.packetQueue.getOutgoingPacket()
+            this.processOutgoingPacket(packet)
+        }
+    }
+    
+    private function processIncomingPacket(packet: Packet): void {
+        // Декодирование пакета по уровням OSI
+        var ethernetFrame = this.ethernetStack.decode(packet)
+        if (ethernetFrame != null) {
+            var ipPacket = this.ipStack.decode(ethernetFrame)
+            if (ipPacket != null) {
+                if (ipPacket.getProtocol() == Protocol.TCP) {
+                    this.tcpStack.handlePacket(ipPacket)
+                } else if (ipPacket.getProtocol() == Protocol.UDP) {
+                    this.udpStack.handlePacket(ipPacket)
+                }
+            }
+        }
+    }
+    
+    private function processOutgoingPacket(packet: Packet): void {
+        // Кодирование пакета для отправки
+        var ipPacket = this.ipStack.encode(packet)
+        if (ipPacket != null) {
+            var ethernetFrame = this.ethernetStack.encode(ipPacket)
+            if (ethernetFrame != null) {
+                this.sendPacket(ethernetFrame)
+            }
+        }
+    }
+    
+    private function sendPacket(packet: Packet): void {
+        println("Отправка пакета: " + packet.getSize() + " байт")
+        // Здесь будет реальная отправка пакета
+    }
+    
+    public function createConnection(host: String, port: int, protocol: Protocol): Connection {
+        return this.connectionManager.createConnection(host, port, protocol)
+    }
+    
+    public function shutdown(): void {
+        println("Завершение работы сетевого стека...")
+        
+        this.connectionManager.shutdown()
+        this.tcpStack.shutdown()
+        this.udpStack.shutdown()
+        this.ipStack.shutdown()
+        this.ethernetStack.shutdown()
+        
+        println("Сетевой стек завершен")
+    }
+}
+
+// TCP стек
+class TCPStack {
+    private var connections: Map<String, TCPConnection>
+    private var portManager: PortManager
+    
+    constructor() {
+        this.connections = new Map<String, TCPConnection>()
+        this.portManager = new PortManager()
+    }
+    
+    public function initialize(): void {
+        println("Инициализация TCP стека")
+        this.portManager.initialize()
+    }
+    
+    public function handlePacket(packet: IPPacket): void {
+        var tcpPacket = new TCPPacket(packet.getData())
+        var connectionKey = tcpPacket.getSourcePort() + ":" + tcpPacket.getDestPort()
+        
+        if (this.connections.containsKey(connectionKey)) {
+            var connection = this.connections.get(connectionKey)
+            connection.handlePacket(tcpPacket)
+        } else {
+            // Новое соединение
+            this.createConnection(tcpPacket)
+        }
+    }
+    
+    private function createConnection(packet: TCPPacket): void {
+        var connection = new TCPConnection(packet.getSourcePort(), packet.getDestPort())
+        var connectionKey = packet.getSourcePort() + ":" + packet.getDestPort()
+        this.connections.put(connectionKey, connection)
+    }
+    
+    public function shutdown(): void {
+        for (var connection: TCPConnection in this.connections.values()) {
+            connection.close()
+        }
+        this.connections.clear()
+    }
+}
+
+// UDP стек
+class UDPStack {
+    private var listeners: Map<int, UDPListener>
+    
+    constructor() {
+        this.listeners = new Map<int, UDPListener>()
+    }
+    
+    public function initialize(): void {
+        println("Инициализация UDP стека")
+    }
+    
+    public function handlePacket(packet: IPPacket): void {
+        var udpPacket = new UDPPacket(packet.getData())
+        var destPort = udpPacket.getDestPort()
+        
+        if (this.listeners.containsKey(destPort)) {
+            var listener = this.listeners.get(destPort)
+            listener.handlePacket(udpPacket)
+        }
+    }
+    
+    public function addListener(port: int, listener: UDPListener): void {
+        this.listeners.put(port, listener)
+    }
+    
+    public function shutdown(): void {
+        this.listeners.clear()
+    }
+}
+
+// IP стек
+class IPStack {
+    private var routingTable: RoutingTable
+    private var arpCache: ARPCache
+    
+    constructor() {
+        this.routingTable = new RoutingTable()
+        this.arpCache = new ARPCache()
+    }
+    
+    public function initialize(): void {
+        println("Инициализация IP стека")
+        this.routingTable.initialize()
+        this.arpCache.initialize()
+    }
+    
+    public function decode(ethernetFrame: EthernetFrame): IPPacket {
+        if (ethernetFrame.getType() == EtherType.IP) {
+            return new IPPacket(ethernetFrame.getData())
+        }
+        return null
+    }
+    
+    public function encode(packet: Packet): IPPacket {
+        // Создание IP пакета
+        var ipPacket = new IPPacket()
+        ipPacket.setData(packet.getData())
+        ipPacket.setProtocol(packet.getProtocol())
+        ipPacket.setSourceIP(packet.getSourceIP())
+        ipPacket.setDestIP(packet.getDestIP())
+        return ipPacket
+    }
+    
+    public function getProtocol(): Protocol {
+        return Protocol.IP
+    }
+    
+    public function shutdown(): void {
+        this.routingTable.shutdown()
+        this.arpCache.shutdown()
+    }
+}
+
+// Ethernet стек
+class EthernetStack {
+    private var interfaces: List<NetworkInterface>
+    
+    constructor() {
+        this.interfaces = new List<NetworkInterface>()
+    }
+    
+    public function initialize(): void {
+        println("Инициализация Ethernet стека")
+        this.discoverInterfaces()
+    }
+    
+    private function discoverInterfaces(): void {
+        // Обнаружение сетевых интерфейсов
+        println("Обнаружение сетевых интерфейсов...")
+    }
+    
+    public function decode(packet: Packet): EthernetFrame {
+        return new EthernetFrame(packet.getData())
+    }
+    
+    public function encode(ipPacket: IPPacket): EthernetFrame {
+        var frame = new EthernetFrame()
+        frame.setData(ipPacket.getData())
+        frame.setType(EtherType.IP)
+        return frame
+    }
+    
+    public function shutdown(): void {
+        this.interfaces.clear()
+    }
+}
+
+// Менеджер соединений
+class ConnectionManager {
+    private var connections: Map<String, Connection>
+    
+    constructor() {
+        this.connections = new Map<String, Connection>()
+    }
+    
+    public function initialize(): void {
+        println("Инициализация менеджера соединений")
+    }
+    
+    public function createConnection(host: String, port: int, protocol: Protocol): Connection {
+        var connectionKey = host + ":" + port + ":" + protocol.toString()
+        
+        if (protocol == Protocol.TCP) {
+            var connection = new TCPConnection(port, port)
+            this.connections.put(connectionKey, connection)
+            return connection
+        } else if (protocol == Protocol.UDP) {
+            var connection = new UDPConnection(host, port)
+            this.connections.put(connectionKey, connection)
+            return connection
+        }
+        
+        return null
+    }
+    
+    public function shutdown(): void {
+        for (var connection: Connection in this.connections.values()) {
+            connection.close()
+        }
+        this.connections.clear()
+    }
+}
+
+// Базовые классы для пакетов
+class Packet {
+    protected var data: byte[]
+    protected var size: int
+    protected var protocol: Protocol
+    protected var sourceIP: String
+    protected var destIP: String
+    
+    constructor() {
+        this.data = new byte[0]
+        this.size = 0
+    }
+    
+    public function getData(): byte[] {
+        return this.data
+    }
+    
+    public function setData(data: byte[]): void {
+        this.data = data
+        this.size = data.length
+    }
+    
+    public function getSize(): int {
+        return this.size
+    }
+    
+    public function getProtocol(): Protocol {
+        return this.protocol
+    }
+    
+    public function setProtocol(protocol: Protocol): void {
+        this.protocol = protocol
+    }
+    
+    public function getSourceIP(): String {
+        return this.sourceIP
+    }
+    
+    public function setSourceIP(ip: String): void {
+        this.sourceIP = ip
+    }
+    
+    public function getDestIP(): String {
+        return this.destIP
+    }
+    
+    public function setDestIP(ip: String): void {
+        this.destIP = ip
+    }
+}
+
+// Протоколы
+enum Protocol {
+    TCP,
+    UDP,
+    IP,
+    ICMP
+}
+
+// Типы Ethernet
+enum EtherType {
+    IP,
+    ARP,
+    VLAN
+}
+
+// Дополнительные классы (упрощенные реализации)
+class TCPPacket extends Packet {
+    private var sourcePort: int
+    private var destPort: int
+    
+    constructor(data: byte[]) {
+        super()
+        this.setData(data)
+    }
+    
+    public function getSourcePort(): int {
+        return this.sourcePort
+    }
+    
+    public function getDestPort(): int {
+        return this.destPort
+    }
+}
+
+class UDPPacket extends Packet {
+    private var sourcePort: int
+    private var destPort: int
+    
+    constructor(data: byte[]) {
+        super()
+        this.setData(data)
+    }
+    
+    public function getSourcePort(): int {
+        return this.sourcePort
+    }
+    
+    public function getDestPort(): int {
+        return this.destPort
+    }
+}
+
+class IPPacket extends Packet {
+    constructor() {
+        super()
+    }
+    
+    constructor(data: byte[]) {
+        super()
+        this.setData(data)
+    }
+}
+
+class EthernetFrame {
+    private var data: byte[]
+    private var type: EtherType
+    
+    constructor() {
+        this.data = new byte[0]
+    }
+    
+    constructor(data: byte[]) {
+        this.data = data
+    }
+    
+    public function getData(): byte[] {
+        return this.data
+    }
+    
+    public function setData(data: byte[]): void {
+        this.data = data
+    }
+    
+    public function getType(): EtherType {
+        return this.type
+    }
+    
+    public function setType(type: EtherType): void {
+        this.type = type
+    }
+}
+
+// Классы соединений
+class Connection {
+    protected var host: String
+    protected var port: int
+    protected var isConnected: boolean
+    
+    constructor(host: String, port: int) {
+        this.host = host
+        this.port = port
+        this.isConnected = false
+    }
+    
+    public function connect(): boolean {
+        this.isConnected = true
+        return true
+    }
+    
+    public function close(): void {
+        this.isConnected = false
+    }
+    
+    public function isConnected(): boolean {
+        return this.isConnected
+    }
+}
+
+class TCPConnection extends Connection {
+    private var sourcePort: int
+    private var destPort: int
+    
+    constructor(sourcePort: int, destPort: int) {
+        super("", 0)
+        this.sourcePort = sourcePort
+        this.destPort = destPort
+    }
+    
+    public function handlePacket(packet: TCPPacket): void {
+        println("Обработка TCP пакета: " + packet.getSize() + " байт")
+    }
+}
+
+class UDPConnection extends Connection {
+    constructor(host: String, port: int) {
+        super(host, port)
+    }
+}
+
+class UDPListener {
+    public function handlePacket(packet: UDPPacket): void {
+        println("UDP пакет получен: " + packet.getSize() + " байт")
+    }
+}
+
+// Вспомогательные классы
+class PacketQueue {
+    private var incomingPackets: List<Packet>
+    private var outgoingPackets: List<Packet>
+    
+    constructor() {
+        this.incomingPackets = new List<Packet>()
+        this.outgoingPackets = new List<Packet>()
+    }
+    
+    public function hasIncomingPackets(): boolean {
+        return !this.incomingPackets.isEmpty()
+    }
+    
+    public function hasOutgoingPackets(): boolean {
+        return !this.outgoingPackets.isEmpty()
+    }
+    
+    public function getIncomingPacket(): Packet {
+        return this.incomingPackets.remove(0)
+    }
+    
+    public function getOutgoingPacket(): Packet {
+        return this.outgoingPackets.remove(0)
+    }
+}
+
+class PortManager {
+    private var usedPorts: Set<int>
+    
+    constructor() {
+        this.usedPorts = new Set<int>()
+    }
+    
+    public function initialize(): void {
+        println("Инициализация менеджера портов")
+    }
+}
+
+class RoutingTable {
+    public function initialize(): void {
+        println("Инициализация таблицы маршрутизации")
+    }
+    
+    public function shutdown(): void {
+        // Завершение работы
+    }
+}
+
+class ARPCache {
+    public function initialize(): void {
+        println("Инициализация ARP кэша")
+    }
+    
+    public function shutdown(): void {
+        // Завершение работы
+    }
+}
+
+class NetworkInterface {
+    private var name: String
+    private var macAddress: String
+    
+    constructor(name: String, macAddress: String) {
+        this.name = name
+        this.macAddress = macAddress
+    }
+} 

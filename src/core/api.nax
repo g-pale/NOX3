@@ -1,0 +1,583 @@
+// API сервер NOX
+// Предоставляет REST API для управления платформой
+
+class APIServer {
+    private var server: HTTPServer
+    private var router: APIRouter
+    private var authManager: AuthManager
+    private var isRunning: boolean
+    private var port: int
+    
+    constructor() {
+        this.server = new HTTPServer()
+        this.router = new APIRouter()
+        this.authManager = new AuthManager()
+        this.isRunning = false
+        this.port = 8080
+    }
+    
+    public function start(): void {
+        println("Запуск API сервера на порту " + this.port + "...")
+        
+        this.authManager.initialize()
+        this.setupRoutes()
+        this.server.start(this.port)
+        this.isRunning = true
+        
+        println("API сервер запущен")
+    }
+    
+    public function stop(): void {
+        println("Остановка API сервера...")
+        
+        this.server.stop()
+        this.isRunning = false
+        this.authManager.shutdown()
+        
+        println("API сервер остановлен")
+    }
+    
+    private function setupRoutes(): void {
+        // Системные эндпоинты
+        this.router.addRoute("GET", "/api/v1/system/status", this.handleSystemStatus.bind(this))
+        this.router.addRoute("GET", "/api/v1/system/info", this.handleSystemInfo.bind(this))
+        this.router.addRoute("POST", "/api/v1/system/shutdown", this.handleSystemShutdown.bind(this))
+        
+        // Модульные эндпоинты
+        this.router.addRoute("GET", "/api/v1/modules", this.handleGetModules.bind(this))
+        this.router.addRoute("POST", "/api/v1/modules/{name}/enable", this.handleEnableModule.bind(this))
+        this.router.addRoute("POST", "/api/v1/modules/{name}/disable", this.handleDisableModule.bind(this))
+        this.router.addRoute("GET", "/api/v1/modules/{name}/status", this.handleModuleStatus.bind(this))
+        
+        // Сетевые эндпоинты
+        this.router.addRoute("GET", "/api/v1/network/interfaces", this.handleGetInterfaces.bind(this))
+        this.router.addRoute("GET", "/api/v1/network/connections", this.handleGetConnections.bind(this))
+        this.router.addRoute("POST", "/api/v1/network/connect", this.handleCreateConnection.bind(this))
+        
+        // Аутентификация
+        this.router.addRoute("POST", "/api/v1/auth/login", this.handleLogin.bind(this))
+        this.router.addRoute("POST", "/api/v1/auth/logout", this.handleLogout.bind(this))
+        this.router.addRoute("GET", "/api/v1/auth/status", this.handleAuthStatus.bind(this))
+    }
+    
+    // Обработчики системных эндпоинтов
+    private function handleSystemStatus(request: HTTPRequest, response: HTTPResponse): void {
+        var status = {
+            "status": "running",
+            "uptime": getUptime(),
+            "version": "3.0.0",
+            "timestamp": getCurrentTimestamp()
+        }
+        
+        response.setStatus(200)
+        response.setContentType("application/json")
+        response.setBody(JSON.stringify(status))
+    }
+    
+    private function handleSystemInfo(request: HTTPRequest, response: HTTPResponse): void {
+        var info = {
+            "name": "NOX Platform",
+            "version": "3.0.0",
+            "description": "Сетевая операционная система",
+            "architecture": "modular",
+            "modules": getLoadedModulesCount(),
+            "memory": getMemoryUsage(),
+            "cpu": getCPUUsage()
+        }
+        
+        response.setStatus(200)
+        response.setContentType("application/json")
+        response.setBody(JSON.stringify(info))
+    }
+    
+    private function handleSystemShutdown(request: HTTPRequest, response: HTTPResponse): void {
+        // Проверка авторизации
+        if (!this.authManager.isAuthenticated(request)) {
+            response.setStatus(401)
+            response.setBody("Unauthorized")
+            return
+        }
+        
+        response.setStatus(200)
+        response.setBody("System shutdown initiated")
+        
+        // Запуск процесса завершения работы
+        scheduleShutdown()
+    }
+    
+    // Обработчики модульных эндпоинтов
+    private function handleGetModules(request: HTTPRequest, response: HTTPResponse): void {
+        var modules = getModulesList()
+        
+        response.setStatus(200)
+        response.setContentType("application/json")
+        response.setBody(JSON.stringify(modules))
+    }
+    
+    private function handleEnableModule(request: HTTPRequest, response: HTTPResponse): void {
+        var moduleName = request.getPathParameter("name")
+        
+        if (!this.authManager.isAuthenticated(request)) {
+            response.setStatus(401)
+            response.setBody("Unauthorized")
+            return
+        }
+        
+        var success = enableModule(moduleName)
+        
+        if (success) {
+            response.setStatus(200)
+            response.setBody("Module " + moduleName + " enabled")
+        } else {
+            response.setStatus(404)
+            response.setBody("Module " + moduleName + " not found")
+        }
+    }
+    
+    private function handleDisableModule(request: HTTPRequest, response: HTTPResponse): void {
+        var moduleName = request.getPathParameter("name")
+        
+        if (!this.authManager.isAuthenticated(request)) {
+            response.setStatus(401)
+            response.setBody("Unauthorized")
+            return
+        }
+        
+        var success = disableModule(moduleName)
+        
+        if (success) {
+            response.setStatus(200)
+            response.setBody("Module " + moduleName + " disabled")
+        } else {
+            response.setStatus(404)
+            response.setBody("Module " + moduleName + " not found")
+        }
+    }
+    
+    private function handleModuleStatus(request: HTTPRequest, response: HTTPResponse): void {
+        var moduleName = request.getPathParameter("name")
+        var status = getModuleStatus(moduleName)
+        
+        if (status != null) {
+            response.setStatus(200)
+            response.setContentType("application/json")
+            response.setBody(JSON.stringify(status))
+        } else {
+            response.setStatus(404)
+            response.setBody("Module " + moduleName + " not found")
+        }
+    }
+    
+    // Обработчики сетевых эндпоинтов
+    private function handleGetInterfaces(request: HTTPRequest, response: HTTPResponse): void {
+        var interfaces = getNetworkInterfaces()
+        
+        response.setStatus(200)
+        response.setContentType("application/json")
+        response.setBody(JSON.stringify(interfaces))
+    }
+    
+    private function handleGetConnections(request: HTTPRequest, response: HTTPResponse): void {
+        var connections = getActiveConnections()
+        
+        response.setStatus(200)
+        response.setContentType("application/json")
+        response.setBody(JSON.stringify(connections))
+    }
+    
+    private function handleCreateConnection(request: HTTPRequest, response: HTTPResponse): void {
+        if (!this.authManager.isAuthenticated(request)) {
+            response.setStatus(401)
+            response.setBody("Unauthorized")
+            return
+        }
+        
+        var body = JSON.parse(request.getBody())
+        var host = body.get("host")
+        var port = body.get("port")
+        var protocol = body.get("protocol")
+        
+        var connection = createNetworkConnection(host, port, protocol)
+        
+        if (connection != null) {
+            response.setStatus(201)
+            response.setContentType("application/json")
+            response.setBody(JSON.stringify(connection))
+        } else {
+            response.setStatus(400)
+            response.setBody("Failed to create connection")
+        }
+    }
+    
+    // Обработчики аутентификации
+    private function handleLogin(request: HTTPRequest, response: HTTPResponse): void {
+        var body = JSON.parse(request.getBody())
+        var username = body.get("username")
+        var password = body.get("password")
+        
+        var token = this.authManager.authenticate(username, password)
+        
+        if (token != null) {
+            response.setStatus(200)
+            response.setContentType("application/json")
+            response.setBody(JSON.stringify({
+                "token": token,
+                "expires": getTokenExpiration(token)
+            }))
+        } else {
+            response.setStatus(401)
+            response.setBody("Invalid credentials")
+        }
+    }
+    
+    private function handleLogout(request: HTTPRequest, response: HTTPResponse): void {
+        var token = request.getHeader("Authorization")
+        this.authManager.logout(token)
+        
+        response.setStatus(200)
+        response.setBody("Logged out successfully")
+    }
+    
+    private function handleAuthStatus(request: HTTPRequest, response: HTTPResponse): void {
+        var isAuthenticated = this.authManager.isAuthenticated(request)
+        
+        response.setStatus(200)
+        response.setContentType("application/json")
+        response.setBody(JSON.stringify({
+            "authenticated": isAuthenticated
+        }))
+    }
+    
+    public function isRunning(): boolean {
+        return this.isRunning
+    }
+}
+
+// HTTP сервер
+class HTTPServer {
+    private var isRunning: boolean
+    private var port: int
+    private var router: APIRouter
+    
+    constructor() {
+        this.isRunning = false
+        this.port = 8080
+        this.router = null
+    }
+    
+    public function start(port: int): void {
+        this.port = port
+        println("HTTP сервер запускается на порту " + this.port)
+        this.isRunning = true
+        
+        // Здесь будет реальная реализация HTTP сервера
+        // Пока это заглушка
+    }
+    
+    public function stop(): void {
+        this.isRunning = false
+        println("HTTP сервер остановлен")
+    }
+    
+    public function setRouter(router: APIRouter): void {
+        this.router = router
+    }
+    
+    public function isRunning(): boolean {
+        return this.isRunning
+    }
+}
+
+// API роутер
+class APIRouter {
+    private var routes: Map<String, RouteHandler>
+    
+    constructor() {
+        this.routes = new Map<String, RouteHandler>()
+    }
+    
+    public function addRoute(method: String, path: String, handler: RouteHandler): void {
+        var key = method + ":" + path
+        this.routes.put(key, handler)
+    }
+    
+    public function handleRequest(request: HTTPRequest): HTTPResponse {
+        var key = request.getMethod() + ":" + request.getPath()
+        var handler = this.routes.get(key)
+        
+        if (handler != null) {
+            var response = new HTTPResponse()
+            handler(request, response)
+            return response
+        } else {
+            var response = new HTTPResponse()
+            response.setStatus(404)
+            response.setBody("Not Found")
+            return response
+        }
+    }
+}
+
+// Менеджер аутентификации
+class AuthManager {
+    private var activeTokens: Map<String, TokenInfo>
+    private var users: Map<String, User>
+    
+    constructor() {
+        this.activeTokens = new Map<String, TokenInfo>()
+        this.users = new Map<String, User>()
+    }
+    
+    public function initialize(): void {
+        println("Инициализация менеджера аутентификации")
+        this.loadUsers()
+    }
+    
+    public function authenticate(username: String, password: String): String {
+        var user = this.users.get(username)
+        if (user != null && user.validatePassword(password)) {
+            var token = generateToken()
+            var tokenInfo = new TokenInfo(username, getCurrentTimestamp() + 3600000) // 1 час
+            this.activeTokens.put(token, tokenInfo)
+            return token
+        }
+        return null
+    }
+    
+    public function logout(token: String): void {
+        this.activeTokens.remove(token)
+    }
+    
+    public function isAuthenticated(request: HTTPRequest): boolean {
+        var token = request.getHeader("Authorization")
+        if (token != null && token.startsWith("Bearer ")) {
+            token = token.substring(7)
+            var tokenInfo = this.activeTokens.get(token)
+            if (tokenInfo != null && tokenInfo.isValid()) {
+                return true
+            }
+        }
+        return false
+    }
+    
+    public function shutdown(): void {
+        this.activeTokens.clear()
+    }
+    
+    private function loadUsers(): void {
+        // Загрузка пользователей из конфигурации
+        var admin = new User("admin", "admin123")
+        this.users.put("admin", admin)
+    }
+    
+    private function generateToken(): String {
+        // Генерация случайного токена
+        return "token_" + getCurrentTimestamp()
+    }
+}
+
+// Классы для HTTP
+class HTTPRequest {
+    private var method: String
+    private var path: String
+    private var headers: Map<String, String>
+    private var body: String
+    private var pathParameters: Map<String, String>
+    
+    constructor() {
+        this.method = "GET"
+        this.path = "/"
+        this.headers = new Map<String, String>()
+        this.body = ""
+        this.pathParameters = new Map<String, String>()
+    }
+    
+    public function getMethod(): String {
+        return this.method
+    }
+    
+    public function setMethod(method: String): void {
+        this.method = method
+    }
+    
+    public function getPath(): String {
+        return this.path
+    }
+    
+    public function setPath(path: String): void {
+        this.path = path
+    }
+    
+    public function getHeader(name: String): String {
+        return this.headers.get(name)
+    }
+    
+    public function setHeader(name: String, value: String): void {
+        this.headers.put(name, value)
+    }
+    
+    public function getBody(): String {
+        return this.body
+    }
+    
+    public function setBody(body: String): void {
+        this.body = body
+    }
+    
+    public function getPathParameter(name: String): String {
+        return this.pathParameters.get(name)
+    }
+    
+    public function setPathParameter(name: String, value: String): void {
+        this.pathParameters.put(name, value)
+    }
+}
+
+class HTTPResponse {
+    private var status: int
+    private var headers: Map<String, String>
+    private var body: String
+    
+    constructor() {
+        this.status = 200
+        this.headers = new Map<String, String>()
+        this.body = ""
+    }
+    
+    public function setStatus(status: int): void {
+        this.status = status
+    }
+    
+    public function getStatus(): int {
+        return this.status
+    }
+    
+    public function setHeader(name: String, value: String): void {
+        this.headers.put(name, value)
+    }
+    
+    public function getHeader(name: String): String {
+        return this.headers.get(name)
+    }
+    
+    public function setContentType(contentType: String): void {
+        this.setHeader("Content-Type", contentType)
+    }
+    
+    public function setBody(body: String): void {
+        this.body = body
+    }
+    
+    public function getBody(): String {
+        return this.body
+    }
+}
+
+// Вспомогательные классы
+class TokenInfo {
+    private var username: String
+    private var expiresAt: long
+    
+    constructor(username: String, expiresAt: long) {
+        this.username = username
+        this.expiresAt = expiresAt
+    }
+    
+    public function isValid(): boolean {
+        return getCurrentTimestamp() < this.expiresAt
+    }
+    
+    public function getUsername(): String {
+        return this.username
+    }
+}
+
+class User {
+    private var username: String
+    private var passwordHash: String
+    
+    constructor(username: String, password: String) {
+        this.username = username
+        this.passwordHash = hashPassword(password)
+    }
+    
+    public function validatePassword(password: String): boolean {
+        return this.passwordHash == hashPassword(password)
+    }
+    
+    public function getUsername(): String {
+        return this.username
+    }
+}
+
+// Тип для обработчиков маршрутов
+type RouteHandler = function(HTTPRequest, HTTPResponse): void
+
+// Утилитарные функции (заглушки)
+function getUptime(): long {
+    return 0
+}
+
+function getCurrentTimestamp(): long {
+    return 0
+}
+
+function getLoadedModulesCount(): int {
+    return 0
+}
+
+function getMemoryUsage(): Map<String, Object> {
+    return new Map<String, Object>()
+}
+
+function getCPUUsage(): Map<String, Object> {
+    return new Map<String, Object>()
+}
+
+function scheduleShutdown(): void {
+    // Запланировать завершение работы
+}
+
+function getModulesList(): List<Object> {
+    return new List<Object>()
+}
+
+function enableModule(name: String): boolean {
+    return false
+}
+
+function disableModule(name: String): boolean {
+    return false
+}
+
+function getModuleStatus(name: String): Object {
+    return null
+}
+
+function getNetworkInterfaces(): List<Object> {
+    return new List<Object>()
+}
+
+function getActiveConnections(): List<Object> {
+    return new List<Object>()
+}
+
+function createNetworkConnection(host: String, port: int, protocol: String): Object {
+    return null
+}
+
+function getTokenExpiration(token: String): long {
+    return 0
+}
+
+function hashPassword(password: String): String {
+    return password // Упрощенная реализация
+}
+
+function JSON.stringify(obj: Object): String {
+    return "{}" // Заглушка
+}
+
+function JSON.parse(json: String): Object {
+    return new Map<String, Object>() // Заглушка
+} 

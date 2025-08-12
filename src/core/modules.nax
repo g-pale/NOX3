@@ -1,0 +1,419 @@
+// Модульная система NOX
+// Управление загрузкой и выполнением модулей
+
+class ModuleManager {
+    private var modules: Map<String, Module>
+    private var moduleLoader: ModuleLoader
+    private var moduleRegistry: ModuleRegistry
+    private var dependencyResolver: DependencyResolver
+    
+    constructor() {
+        this.modules = new Map<String, Module>()
+        this.moduleLoader = new ModuleLoader()
+        this.moduleRegistry = new ModuleRegistry()
+        this.dependencyResolver = new DependencyResolver()
+    }
+    
+    public function loadModules(): void {
+        println("Загрузка модулей...")
+        
+        // Сканирование директории модулей
+        var moduleFiles = this.moduleLoader.scanModuleDirectory("modules/")
+        
+        // Разрешение зависимостей
+        var loadOrder = this.dependencyResolver.resolveDependencies(moduleFiles)
+        
+        // Загрузка модулей в правильном порядке
+        for (var moduleFile: String in loadOrder) {
+            this.loadModule(moduleFile)
+        }
+        
+        println("Модули загружены: " + this.modules.size() + " модулей")
+    }
+    
+    private function loadModule(moduleFile: String): void {
+        try {
+            var module = this.moduleLoader.loadModule(moduleFile)
+            if (module != null) {
+                this.modules.put(module.getName(), module)
+                this.moduleRegistry.registerModule(module)
+                
+                // Инициализация модуля
+                module.initialize()
+                
+                println("Модуль загружен: " + module.getName() + " v" + module.getVersion())
+            }
+        } catch (error: Exception) {
+            println("Ошибка загрузки модуля " + moduleFile + ": " + error.getMessage())
+        }
+    }
+    
+    public function updateModules(): void {
+        for (var module: Module in this.modules.values()) {
+            if (module.isEnabled()) {
+                module.update()
+            }
+        }
+    }
+    
+    public function unloadModules(): void {
+        println("Выгрузка модулей...")
+        
+        for (var module: Module in this.modules.values()) {
+            try {
+                module.shutdown()
+                println("Модуль выгружен: " + module.getName())
+            } catch (error: Exception) {
+                println("Ошибка выгрузки модуля " + module.getName() + ": " + error.getMessage())
+            }
+        }
+        
+        this.modules.clear()
+        this.moduleRegistry.clear()
+    }
+    
+    public function getModule(name: String): Module {
+        return this.modules.get(name)
+    }
+    
+    public function enableModule(name: String): boolean {
+        var module = this.modules.get(name)
+        if (module != null) {
+            module.enable()
+            return true
+        }
+        return false
+    }
+    
+    public function disableModule(name: String): boolean {
+        var module = this.modules.get(name)
+        if (module != null) {
+            module.disable()
+            return true
+        }
+        return false
+    }
+    
+    public function getLoadedModules(): List<String> {
+        var moduleNames = new List<String>()
+        for (var module: Module in this.modules.values()) {
+            moduleNames.add(module.getName())
+        }
+        return moduleNames
+    }
+}
+
+// Базовый класс модуля
+abstract class Module {
+    protected var name: String
+    protected var version: String
+    protected var description: String
+    protected var author: String
+    protected var dependencies: List<String>
+    protected var isEnabled: boolean
+    protected var isInitialized: boolean
+    
+    constructor(name: String, version: String) {
+        this.name = name
+        this.version = version
+        this.description = ""
+        this.author = ""
+        this.dependencies = new List<String>()
+        this.isEnabled = false
+        this.isInitialized = false
+    }
+    
+    // Абстрактные методы, которые должны быть реализованы в подклассах
+    abstract function initialize(): void
+    abstract function update(): void
+    abstract function shutdown(): void
+    
+    // Геттеры
+    public function getName(): String {
+        return this.name
+    }
+    
+    public function getVersion(): String {
+        return this.version
+    }
+    
+    public function getDescription(): String {
+        return this.description
+    }
+    
+    public function setDescription(description: String): void {
+        this.description = description
+    }
+    
+    public function getAuthor(): String {
+        return this.author
+    }
+    
+    public function setAuthor(author: String): void {
+        this.author = author
+    }
+    
+    public function getDependencies(): List<String> {
+        return this.dependencies
+    }
+    
+    public function addDependency(dependency: String): void {
+        this.dependencies.add(dependency)
+    }
+    
+    public function isEnabled(): boolean {
+        return this.isEnabled
+    }
+    
+    public function enable(): void {
+        this.isEnabled = true
+        println("Модуль " + this.name + " включен")
+    }
+    
+    public function disable(): void {
+        this.isEnabled = false
+        println("Модуль " + this.name + " отключен")
+    }
+    
+    public function isInitialized(): boolean {
+        return this.isInitialized
+    }
+    
+    protected function setInitialized(initialized: boolean): void {
+        this.isInitialized = initialized
+    }
+}
+
+// Загрузчик модулей
+class ModuleLoader {
+    private var moduleDirectory: String
+    
+    constructor() {
+        this.moduleDirectory = "modules/"
+    }
+    
+    public function scanModuleDirectory(directory: String): List<String> {
+        var moduleFiles = new List<String>()
+        println("Сканирование директории модулей: " + directory)
+        
+        // Здесь будет логика сканирования файловой системы
+        // Пока возвращаем пустой список
+        return moduleFiles
+    }
+    
+    public function loadModule(moduleFile: String): Module {
+        println("Загрузка модуля из файла: " + moduleFile)
+        
+        // Здесь будет логика загрузки модуля из файла
+        // Пока возвращаем null
+        return null
+    }
+    
+    public function validateModule(module: Module): boolean {
+        if (module.getName() == null || module.getName().isEmpty()) {
+            return false
+        }
+        
+        if (module.getVersion() == null || module.getVersion().isEmpty()) {
+            return false
+        }
+        
+        return true
+    }
+}
+
+// Реестр модулей
+class ModuleRegistry {
+    private var registeredModules: Map<String, ModuleInfo>
+    
+    constructor() {
+        this.registeredModules = new Map<String, ModuleInfo>()
+    }
+    
+    public function registerModule(module: Module): void {
+        var moduleInfo = new ModuleInfo(module)
+        this.registeredModules.put(module.getName(), moduleInfo)
+    }
+    
+    public function unregisterModule(moduleName: String): void {
+        this.registeredModules.remove(moduleName)
+    }
+    
+    public function getModuleInfo(moduleName: String): ModuleInfo {
+        return this.registeredModules.get(moduleName)
+    }
+    
+    public function getAllModules(): List<ModuleInfo> {
+        var modules = new List<ModuleInfo>()
+        for (var moduleInfo: ModuleInfo in this.registeredModules.values()) {
+            modules.add(moduleInfo)
+        }
+        return modules
+    }
+    
+    public function clear(): void {
+        this.registeredModules.clear()
+    }
+}
+
+// Информация о модуле
+class ModuleInfo {
+    private var module: Module
+    private var loadTime: long
+    private var lastUpdateTime: long
+    private var updateCount: int
+    
+    constructor(module: Module) {
+        this.module = module
+        this.loadTime = getCurrentTime()
+        this.lastUpdateTime = 0
+        this.updateCount = 0
+    }
+    
+    public function getModule(): Module {
+        return this.module
+    }
+    
+    public function getLoadTime(): long {
+        return this.loadTime
+    }
+    
+    public function getLastUpdateTime(): long {
+        return this.lastUpdateTime
+    }
+    
+    public function setLastUpdateTime(time: long): void {
+        this.lastUpdateTime = time
+    }
+    
+    public function getUpdateCount(): int {
+        return this.updateCount
+    }
+    
+    public function incrementUpdateCount(): void {
+        this.updateCount++
+    }
+}
+
+// Разрешитель зависимостей
+class DependencyResolver {
+    public function resolveDependencies(moduleFiles: List<String>): List<String> {
+        println("Разрешение зависимостей модулей...")
+        
+        // Здесь будет алгоритм топологической сортировки
+        // для определения правильного порядка загрузки
+        
+        return moduleFiles
+    }
+    
+    public function checkDependencies(module: Module, availableModules: List<String>): boolean {
+        for (var dependency: String in module.getDependencies()) {
+            if (!availableModules.contains(dependency)) {
+                println("Отсутствует зависимость: " + dependency + " для модуля " + module.getName())
+                return false
+            }
+        }
+        return true
+    }
+}
+
+// Пример конкретного модуля
+class NetworkModule extends Module {
+    private var networkManager: NetworkManager
+    
+    constructor() {
+        super("NetworkModule", "1.0.0")
+        this.setDescription("Модуль для управления сетевыми соединениями")
+        this.setAuthor("NOX Team")
+        this.addDependency("CoreModule")
+    }
+    
+    public function initialize(): void {
+        println("Инициализация NetworkModule...")
+        this.networkManager = new NetworkManager()
+        this.networkManager.initialize()
+        this.setInitialized(true)
+    }
+    
+    public function update(): void {
+        if (this.isEnabled() && this.isInitialized()) {
+            this.networkManager.update()
+        }
+    }
+    
+    public function shutdown(): void {
+        println("Завершение работы NetworkModule...")
+        if (this.networkManager != null) {
+            this.networkManager.shutdown()
+        }
+        this.setInitialized(false)
+    }
+}
+
+// Пример модуля безопасности
+class SecurityModule extends Module {
+    private var securityManager: SecurityManager
+    
+    constructor() {
+        super("SecurityModule", "1.0.0")
+        this.setDescription("Модуль безопасности и аутентификации")
+        this.setAuthor("NOX Team")
+        this.addDependency("CoreModule")
+    }
+    
+    public function initialize(): void {
+        println("Инициализация SecurityModule...")
+        this.securityManager = new SecurityManager()
+        this.securityManager.initialize()
+        this.setInitialized(true)
+    }
+    
+    public function update(): void {
+        if (this.isEnabled() && this.isInitialized()) {
+            this.securityManager.update()
+        }
+    }
+    
+    public function shutdown(): void {
+        println("Завершение работы SecurityModule...")
+        if (this.securityManager != null) {
+            this.securityManager.shutdown()
+        }
+        this.setInitialized(false)
+    }
+}
+
+// Вспомогательные классы
+class NetworkManager {
+    public function initialize(): void {
+        println("Инициализация NetworkManager")
+    }
+    
+    public function update(): void {
+        // Обновление сетевого состояния
+    }
+    
+    public function shutdown(): void {
+        println("Завершение работы NetworkManager")
+    }
+}
+
+class SecurityManager {
+    public function initialize(): void {
+        println("Инициализация SecurityManager")
+    }
+    
+    public function update(): void {
+        // Обновление состояния безопасности
+    }
+    
+    public function shutdown(): void {
+        println("Завершение работы SecurityManager")
+    }
+}
+
+// Утилитарная функция
+function getCurrentTime(): long {
+    // Возвращает текущее время в миллисекундах
+    return 0 // Заглушка
+} 

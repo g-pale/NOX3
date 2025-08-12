@@ -1,0 +1,99 @@
+// Пример простого модуля для NOX Platform
+// Демонстрирует базовую структуру модуля
+
+import core.modules
+
+class SimpleModule extends Module {
+    private var counter: int
+    private var lastUpdateTime: long
+    
+    constructor() {
+        super("SimpleModule", "1.0.0")
+        this.setDescription("Простой демонстрационный модуль")
+        this.setAuthor("NOX Developer")
+        this.addDependency("CoreModule")
+        
+        this.counter = 0
+        this.lastUpdateTime = 0
+    }
+    
+    public function initialize(): void {
+        println("Инициализация SimpleModule...")
+        
+        // Регистрация обработчиков событий
+        this.registerEventHandlers()
+        
+        // Инициализация счетчика
+        this.counter = 0
+        this.lastUpdateTime = getCurrentTime()
+        
+        this.setInitialized(true)
+        println("SimpleModule инициализирован")
+    }
+    
+    public function update(): void {
+        if (!this.isEnabled() || !this.isInitialized()) {
+            return
+        }
+        
+        var currentTime = getCurrentTime()
+        
+        // Обновление каждые 5 секунд
+        if (currentTime - this.lastUpdateTime > 5000) {
+            this.counter++
+            println("SimpleModule: счетчик = " + this.counter)
+            this.lastUpdateTime = currentTime
+            
+            // Отправка события
+            this.sendEvent("counter_updated", this.counter)
+        }
+    }
+    
+    public function shutdown(): void {
+        println("Завершение работы SimpleModule...")
+        
+        // Очистка ресурсов
+        this.counter = 0
+        this.lastUpdateTime = 0
+        
+        this.setInitialized(false)
+        println("SimpleModule завершен")
+    }
+    
+    private function registerEventHandlers(): void {
+        // Регистрация обработчиков событий
+        println("Регистрация обработчиков событий SimpleModule")
+    }
+    
+    private function sendEvent(eventName: String, data: Object): void {
+        // Отправка события в систему
+        println("Отправка события: " + eventName + " с данными: " + data.toString())
+    }
+    
+    // Публичные методы для API
+    public function getCounter(): int {
+        return this.counter
+    }
+    
+    public function resetCounter(): void {
+        this.counter = 0
+        println("SimpleModule: счетчик сброшен")
+    }
+    
+    public function setCounter(value: int): void {
+        this.counter = value
+        println("SimpleModule: счетчик установлен в " + value)
+    }
+}
+
+// Фабрика для создания модуля
+class SimpleModuleFactory {
+    public static function createModule(): Module {
+        return new SimpleModule()
+    }
+}
+
+// Точка входа для загрузки модуля
+function createModule(): Module {
+    return SimpleModuleFactory.createModule()
+} 
